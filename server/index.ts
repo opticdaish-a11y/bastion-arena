@@ -22,6 +22,22 @@ const __dirname = path.dirname(__filename);
 
 const PORT = Number(process.env.PORT) || 3001;
 const app = express();
+
+// Permissive CORS & CORP headers so PWABuilder and browser validators can read manifest, icons, and SW
+app.use((req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, HEAD, OPTIONS');
+  res.setHeader(
+    'Access-Control-Allow-Headers',
+    'Origin, X-Requested-With, Content-Type, Accept, Authorization'
+  );
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  if (req.method === 'OPTIONS') {
+    return res.status(204).end();
+  }
+  next();
+});
+
 app.use(express.json());
 
 // ==================== PERSISTENT LEADERBOARD ====================
@@ -164,18 +180,46 @@ app.get('/api/rooms', (_req, res) => {
 });
 
 const distDir = path.resolve(__dirname, '../dist');
+
+app.get('/manifest.json', (_req, res) => {
+  const manifestPath = path.join(distDir, 'manifest.webmanifest');
+  if (fs.existsSync(manifestPath)) {
+    res.setHeader('Content-Type', 'application/manifest+json; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache');
+    return res.sendFile(manifestPath);
+  }
+  return res.status(404).end();
+});
+
 app.use(
   express.static(distDir, {
+    dotfiles: 'allow',
     setHeaders: (res, filePath) => {
       if (filePath.endsWith('sw.js') || filePath.endsWith('index.html')) {
         res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-      } else if (filePath.endsWith('manifest.webmanifest')) {
+      } else if (filePath.endsWith('manifest.webmanifest') || filePath.endsWith('manifest.json')) {
         res.setHeader('Content-Type', 'application/manifest+json; charset=utf-8');
         res.setHeader('Cache-Control', 'no-cache');
       }
     },
   })
 );
+
+app.use((req, res, next) => {
+  if (
+    (req.method === 'GET' || req.method === 'HEAD') &&
+    !req.path.startsWith('/api/') &&
+    !req.path.startsWith('/ws') &&
+    !path.extname(req.path)
+  ) {
+    const indexPath = path.join(distDir, 'index.html');
+    if (fs.existsSync(indexPath)) {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      return res.sendFile(indexPath);
+    }
+  }
+  next();
+});
 
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server, path: '/ws' });

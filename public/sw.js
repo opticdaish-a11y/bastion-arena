@@ -1,4 +1,4 @@
-const CACHE_NAME = 'bastion-pwa-v2';
+const CACHE_NAME = 'bastion-pwa-v3';
 const PRECACHE_URLS = [
   '/',
   '/manifest.webmanifest',
@@ -38,7 +38,12 @@ self.addEventListener('fetch', (event) => {
   }
 
   // Network-first for HTML navigation & manifest so Render deploys arrive immediately
-  if (req.mode === 'navigate' || url.pathname === '/' || url.pathname === '/manifest.webmanifest') {
+  if (
+    req.mode === 'navigate' ||
+    url.pathname === '/' ||
+    url.pathname === '/manifest.webmanifest' ||
+    url.pathname === '/manifest.json'
+  ) {
     event.respondWith(
       fetch(req)
         .then((res) => {
@@ -48,7 +53,12 @@ self.addEventListener('fetch', (event) => {
           }
           return res;
         })
-        .catch(() => caches.match(req).then((cached) => cached || caches.match('/')))
+        .catch(() =>
+          caches
+            .match(req)
+            .then((cached) => cached || caches.match('/'))
+            .then((fallback) => fallback || Response.error())
+        )
     );
     return;
   }
@@ -59,13 +69,15 @@ self.addEventListener('fetch', (event) => {
       caches.match(req).then(
         (cached) =>
           cached ||
-          fetch(req).then((res) => {
-            if (res && res.status === 200) {
-              const copy = res.clone();
-              caches.open(CACHE_NAME).then((c) => c.put(req, copy)).catch(() => {});
-            }
-            return res;
-          })
+          fetch(req)
+            .then((res) => {
+              if (res && res.status === 200) {
+                const copy = res.clone();
+                caches.open(CACHE_NAME).then((c) => c.put(req, copy)).catch(() => {});
+              }
+              return res;
+            })
+            .catch(() => Response.error())
       )
     );
     return;
@@ -82,7 +94,7 @@ self.addEventListener('fetch', (event) => {
           }
           return res;
         })
-        .catch(() => cached);
+        .catch(() => cached || Response.error());
       return cached || net;
     })
   );

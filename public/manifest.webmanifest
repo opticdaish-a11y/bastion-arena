@@ -1,8 +1,8 @@
 {
   "id": "/",
-  "name": "BASTIÓN — Arena Táctica de Héroes",
+  "name": "BASTIÓN: Arena Táctica de Héroes",
   "short_name": "BASTIÓN",
-  "description": "Combate táctico por turnos en arena 9×9 con 6 héroes, mejoras, ranking global y multijugador online.",
+  "description": "Combate táctico por turnos en arena 9x9 con 6 héroes, mejoras, ranking global y multijugador online.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
@@ -13,6 +13,9 @@
   "lang": "es",
   "dir": "ltr",
   "categories": ["games", "strategy"],
+  "launch_handler": {
+    "client_mode": ["focus-existing", "auto"]
+  },
   "prefer_related_applications": false,
   "icons": [
     {
@@ -36,16 +39,16 @@
   ],
   "screenshots": [
     {
-      "src": "/art/screen_mobile.webp",
+      "src": "/art/screen_mobile.jpg",
       "sizes": "780x1688",
-      "type": "image/webp",
+      "type": "image/jpeg",
       "form_factor": "narrow",
-      "label": "Combate táctico por turnos 9×9 en móvil"
+      "label": "Combate táctico por turnos 9x9 en móvil"
     },
     {
-      "src": "/art/screen_desktop.webp",
+      "src": "/art/screen_desktop.jpg",
       "sizes": "1280x860",
-      "type": "image/webp",
+      "type": "image/jpeg",
       "form_factor": "wide",
       "label": "Arena de batalla de BASTIÓN en pantalla completa"
     }
