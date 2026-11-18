@@ -12,6 +12,7 @@ export const HERO_TEMPLATES: Record<HeroClassId, HeroTemplate> = {
     atk: 4,
     lore: 'Veterano inquebrantable de la Guardia de Hierro. Rompe líneas enemigas con su escudo.',
     accentColor: '#4a8ec2',
+    portrait: '/art/hero_vanguard.webp',
     abilities: {
       basic: {
         id: 'basic',
@@ -54,6 +55,7 @@ export const HERO_TEMPLATES: Record<HeroClassId, HeroTemplate> = {
     atk: 5,
     lore: 'Maestra del sigilo y el veneno. Aparece tras las líneas rivales antes de que puedan reaccionar.',
     accentColor: '#3f9c7a',
+    portrait: '/art/hero_rogue.webp',
     abilities: {
       basic: {
         id: 'basic',
@@ -95,8 +97,9 @@ export const HERO_TEMPLATES: Record<HeroClassId, HeroTemplate> = {
     move: 3,
     range: 3,
     atk: 4,
-    lore: 'Canaliza el fuego del crisol antiguo para incinera escuadrones enteros desde la distancia.',
+    lore: 'Canaliza el fuego del crisol antiguo para incinerar escuadrones enteros desde la distancia.',
     accentColor: '#d97736',
+    portrait: '/art/hero_pyromancer.webp',
     abilities: {
       basic: {
         id: 'basic',
@@ -142,6 +145,7 @@ export const HERO_TEMPLATES: Record<HeroClassId, HeroTemplate> = {
     atk: 3,
     lore: 'Tejedora de raíces y luz ancestral. Sostiene a sus aliados e inmoviliza a los invasores.',
     accentColor: '#7ca952',
+    portrait: '/art/hero_guardian.webp',
     abilities: {
       basic: {
         id: 'basic',
@@ -180,6 +184,8 @@ export interface ArenaDef {
   id: ArenaId;
   name: string;
   subtitle: string;
+  backdrop: string;
+  accentColor: string;
   layout: string[]; // 9 strings of 9 chars
 }
 
@@ -195,7 +201,9 @@ export const ARENAS: Record<ArenaId, ArenaDef> = {
   crucible: {
     id: 'crucible',
     name: 'El Crisol Central',
-    subtitle: 'Arena equilibrada con pilares simétricos, runas de energía y fuentes curativas.',
+    subtitle: 'Arena volcánica equilibrada con pilares simétricos, runas de energía y fuentes curativas.',
+    backdrop: '/art/arena_crucible.webp',
+    accentColor: '#d97736',
     layout: [
       '.........',
       '..#...#..',
@@ -211,7 +219,9 @@ export const ARENAS: Record<ArenaId, ArenaDef> = {
   twin_ruins: {
     id: 'twin_ruins',
     name: 'Ruinas Gemelas',
-    subtitle: 'Pasillos estrechos y trampas de pinchos que premian el control de posición.',
+    subtitle: 'Templo ancestral entre la niebla con pasillos estrechos y trampas de pinchos.',
+    backdrop: '/art/arena_ruins.webp',
+    accentColor: '#4ca674',
     layout: [
       '.........',
       '.##...##.',
@@ -227,7 +237,9 @@ export const ARENAS: Record<ArenaId, ArenaDef> = {
   obsidian_maze: {
     id: 'obsidian_maze',
     name: 'Laberinto de Obsidiana',
-    subtitle: 'Combate táctico cerrado con múltiples coberturas y flanqueos.',
+    subtitle: 'Caverna de cristal subterránea ideal para emboscadas y flanqueos cerrados.',
+    backdrop: '/art/arena_obsidian.webp',
+    accentColor: '#5ea5db',
     layout: [
       '.........',
       '...#.#...',

@@ -47,6 +47,7 @@ export interface HeroTemplate {
   atk: number;
   lore: string;
   accentColor: string;
+  portrait: string;
   abilities: {
     basic: AbilityDef;
     skill1: AbilityDef;

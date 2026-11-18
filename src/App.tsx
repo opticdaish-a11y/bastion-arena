@@ -1,6 +1,7 @@
-import { LogOut, Shield, Volume2, VolumeX } from 'lucide-react';
+import { BookOpen, LogOut, Volume2, VolumeX } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { type ChatMsg, type FloatingFx, GameBoard } from './components/GameBoard';
+import { HowToPlayModal } from './components/HowToPlayModal';
 import { Lobby } from './components/Lobby';
 import { chooseNextAIAction } from './shared/aiEngine';
 import { applyGameAction, createInitialGameState } from './shared/gameEngine';
@@ -32,11 +33,10 @@ export function App() {
   const [difficulty, setDifficulty] = useState<AIDifficulty>('tactician');
   const [lastConfig, setLastConfig] = useState<MatchConfig | null>(null);
   const [muted, setMuted] = useState(false);
+  const [showGuide, setShowGuide] = useState(false);
 
-  // Floating combat effects
   const [floatingFx, setFloatingFx] = useState<FloatingFx[]>([]);
 
-  // Online state
   const wsRef = useRef<WebSocket | null>(null);
   const [myPlayerId, setMyPlayerId] = useState<PlayerId | null>(1);
   const [waitingRoomCode, setWaitingRoomCode] = useState<string | null>(null);
@@ -47,20 +47,33 @@ export function App() {
     const newFx: FloatingFx[] = [];
     for (const ev of events) {
       if (ev.sound) sound.play(ev.sound);
-      if (ev.coord && ev.label) {
-        const color =
+      if (ev.coord) {
+        const kind: FloatingFx['kind'] =
           ev.type === 'damage' || ev.type === 'trap'
-            ? '#f07171'
+            ? 'hit'
             : ev.type === 'heal'
-            ? '#6ee7b7'
+            ? 'heal'
             : ev.type === 'shield'
+            ? 'shield'
+            : ev.type === 'move'
+            ? 'move'
+            : 'skill';
+
+        const color =
+          kind === 'hit'
+            ? '#ff7676'
+            : kind === 'heal'
+            ? '#6ee7b7'
+            : kind === 'shield'
             ? '#7dd3fc'
-            : '#f5c76b';
+            : '#f7d486';
+
         newFx.push({
           id: `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
           coord: ev.coord,
-          label: ev.label,
+          label: ev.label || '',
           color,
+          kind,
         });
       }
     }
@@ -69,7 +82,7 @@ export function App() {
       setTimeout(() => {
         const ids = new Set(newFx.map((f) => f.id));
         setFloatingFx((prev) => prev.filter((f) => !ids.has(f.id)));
-      }, 1200);
+      }, 1150);
     }
   }, []);
 
@@ -137,7 +150,6 @@ export function App() {
     [closeSocket, triggerEvents]
   );
 
-  // Local / AI Start
   const handleStartLocalOrAI = (opts: MatchConfig) => {
     closeSocket();
     setMode(opts.mode);
@@ -155,7 +167,6 @@ export function App() {
     );
   };
 
-  // Online Create / Join
   const handleCreateOnlineRoom = (opts: {
     playerName: string;
     arenaId: ArenaId;
@@ -178,7 +189,6 @@ export function App() {
     });
   };
 
-  // Dispatch Game Action
   const handleAction = useCallback(
     (action: GameAction) => {
       if (mode === 'online') {
@@ -199,7 +209,6 @@ export function App() {
     [mode, triggerEvents]
   );
 
-  // AI Turn Loop
   useEffect(() => {
     if (mode !== 'ai' || !gameState || gameState.winner || gameState.activePlayer !== 2) {
       return;
@@ -208,7 +217,7 @@ export function App() {
     const timer = setTimeout(() => {
       const aiAction = chooseNextAIAction(gameState, 2, difficulty);
       handleAction(aiAction);
-    }, 480);
+    }, 520);
 
     return () => clearTimeout(timer);
   }, [mode, gameState, difficulty, handleAction]);
@@ -237,9 +246,11 @@ export function App() {
     <div className="app-shell">
       <header className="topbar">
         <div className="brand">
-          <div className="brand-crest">
-            <Shield size={20} />
-          </div>
+          <img
+            src="/art/icon-192.png"
+            alt="Bastión"
+            className="brand-crest-img"
+          />
           <div>
             <div className="brand-title">BASTIÓN</div>
             <div className="brand-sub">Arena Táctica de Héroes</div>
@@ -247,6 +258,18 @@ export function App() {
         </div>
 
         <div className="topbar-actions">
+          <button
+            id="open-guide-top-btn"
+            className="btn btn-ghost"
+            onClick={() => {
+              sound.play('click');
+              setShowGuide(true);
+            }}
+            title="Cómo jugar"
+          >
+            <BookOpen size={17} />
+          </button>
+
           <button
             id="toggle-sound-btn"
             className="btn btn-ghost"
@@ -260,7 +283,7 @@ export function App() {
             <button
               id="exit-match-btn"
               className="btn btn-secondary"
-              style={{ padding: '7px 12px', fontSize: '0.82rem' }}
+              style={{ padding: '7px 12px', fontSize: '0.8rem' }}
               onClick={handleExitToLobby}
             >
               <LogOut size={15} />
@@ -275,6 +298,7 @@ export function App() {
           onStartLocalOrAI={handleStartLocalOrAI}
           onCreateOnlineRoom={handleCreateOnlineRoom}
           onJoinOnlineRoom={handleJoinOnlineRoom}
+          onOpenGuide={() => setShowGuide(true)}
           waitingRoomCode={waitingRoomCode}
           onlineError={onlineError}
           onCancelWaiting={closeSocket}
@@ -294,6 +318,8 @@ export function App() {
           onExitToLobby={handleExitToLobby}
         />
       )}
+
+      {showGuide && <HowToPlayModal onClose={() => setShowGuide(false)} />}
     </div>
   );
 }
