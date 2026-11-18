@@ -19,6 +19,21 @@ class SoundEngine {
   public musicEnabled = true;
   private musicStarted = false;
 
+  constructor() {
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', () => {
+        if (!this.ctx) return;
+        if (document.hidden) {
+          if (this.ctx.state === 'running') {
+            this.ctx.suspend().catch(() => {});
+          }
+        } else if (this.musicEnabled && this.ctx.state === 'suspended') {
+          this.ctx.resume().catch(() => {});
+        }
+      });
+    }
+  }
+
   private ensureCtx(): AudioContext | null {
     if (typeof window === 'undefined') return null;
     if (!this.ctx) {
@@ -27,7 +42,7 @@ class SoundEngine {
         (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       if (AudioCtx) this.ctx = new AudioCtx();
     }
-    if (this.ctx && this.ctx.state === 'suspended') {
+    if (this.ctx && this.ctx.state === 'suspended' && !document.hidden) {
       this.ctx.resume().catch(() => {});
     }
     return this.ctx;

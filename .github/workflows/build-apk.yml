@@ -1,0 +1,111 @@
+name: Build Android Demo APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/build-apk.yml'
+      - 'android/**'
+      - 'capacitor.config.json'
+      - 'public/offline.html'
+      - 'public/art/icon-*.png'
+
+permissions:
+  contents: write
+
+jobs:
+  build-android-apk:
+    name: Compile Signed Release APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 24
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Set up Gradle cache
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build web bundle & sync Capacitor Android
+        run: |
+          npm ci
+          npm run build
+          npx cap sync android
+
+      - name: Ensure Android SDK 36 platform & build-tools
+        run: |
+          SDKMANAGER="$(command -v sdkmanager || find "$ANDROID_HOME/cmdline-tools" -name sdkmanager -type f | head -n 1)"
+          if [ -n "$SDKMANAGER" ]; then
+            yes | "$SDKMANAGER" --licenses >/dev/null 2>&1 || true
+            "$SDKMANAGER" "platforms;android-36" "build-tools;35.0.0" >/dev/null 2>&1 || true
+          fi
+
+      - name: Assemble Android Release APK
+        run: |
+          chmod +x android/gradlew
+          cd android
+          ./gradlew assembleRelease --no-daemon
+
+      - name: Align and sign APK for direct sideloading
+        run: |
+          RAW_APK="$(find android/app/build/outputs/apk/release -name '*.apk' | head -n 1)"
+          echo "Found built APK: $RAW_APK"
+          BUILD_TOOLS="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -n 1)"
+          echo "Using build-tools: $BUILD_TOOLS"
+
+          "$BUILD_TOOLS/zipalign" -f -p 4 "$RAW_APK" bastion-aligned.apk
+
+          keytool -genkeypair -noprompt \
+            -keystore /tmp/bastion-demo.keystore \
+            -alias bastiondemo \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 3650 \
+            -storepass bastiondemo123 \
+            -keypass bastiondemo123 \
+            -dname "CN=Bastion Arena Demo, OU=Dev, O=Bastion, L=CDMX, C=MX"
+
+          "$BUILD_TOOLS/apksigner" sign \
+            --ks /tmp/bastion-demo.keystore \
+            --ks-key-alias bastiondemo \
+            --ks-pass pass:bastiondemo123 \
+            --key-pass pass:bastiondemo123 \
+            --out bastion-demo.apk \
+            bastion-aligned.apk
+
+          "$BUILD_TOOLS/apksigner" verify --verbose bastion-demo.apk
+          ls -lh bastion-demo.apk
+
+      - name: Upload workflow APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bastion-demo-apk
+          path: bastion-demo.apk
+          retention-days: 30
+
+      - name: Publish direct download to GitHub Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="demo-latest"
+          NOTES="Demo APK directo para Android de **BASTIÓN: Arena Táctica de Héroes**.\n\n- Se conecta en vivo a \`https://bastion-arena.onrender.com\` (las mejoras del juego se reflejan automáticamente sin reinstalar el APK).\n- Incluye pantalla de espera/reconexión offline si el servidor gratuito está despertando.\n- Compilación automática desde commit \`${GITHUB_SHA::7}\`."
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" bastion-demo.apk --clobber
+            gh release edit "$TAG" --title "BASTIÓN Demo APK (Android)" --notes "$(printf '%b' "$NOTES")"
+          else
+            gh release create "$TAG" bastion-demo.apk \
+              --title "BASTIÓN Demo APK (Android)" \
+              --notes "$(printf '%b' "$NOTES")"
+          fi

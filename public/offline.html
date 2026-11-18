@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>BASTIÓN — Conectando con la Arena</title>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      html,
+      body {
+        min-height: 100vh;
+        background: linear-gradient(180deg, #1e355d 0%, #12203a 100%);
+        color: #211912;
+        font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+      }
+      .card {
+        width: 100%;
+        max-width: 420px;
+        background: linear-gradient(180deg, #fcf6e8 0%, #f3e6cc 100%);
+        border: 2.5px solid #cbb07d;
+        border-radius: 20px;
+        padding: 28px 22px;
+        text-align: center;
+        box-shadow: 0 18px 42px rgba(5, 10, 22, 0.55), inset 0 1px 0 #ffffff;
+      }
+      .crest {
+        width: 84px;
+        height: 84px;
+        border-radius: 20px;
+        border: 3px solid #f6b228;
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25);
+        margin-bottom: 14px;
+      }
+      .badge {
+        display: inline-block;
+        background: #1a2b4c;
+        color: #ffd559;
+        font-size: 0.72rem;
+        font-weight: 800;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        padding: 5px 12px;
+        border-radius: 99px;
+        margin-bottom: 12px;
+      }
+      h1 {
+        font-size: 1.45rem;
+        font-weight: 900;
+        color: #1c2434;
+        margin-bottom: 10px;
+      }
+      p {
+        font-size: 0.92rem;
+        line-height: 1.48;
+        color: #5c4b3a;
+        margin-bottom: 16px;
+      }
+      .status-box {
+        background: #ffffff;
+        border: 1.5px solid #d9c398;
+        border-radius: 12px;
+        padding: 12px 14px;
+        margin-bottom: 18px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: #213862;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+      }
+      .spinner {
+        width: 18px;
+        height: 18px;
+        border: 3px solid #e6d3ad;
+        border-top-color: #2d82d6;
+        border-radius: 50%;
+        animation: spin 0.9s linear infinite;
+        flex-shrink: 0;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      .retry-btn {
+        width: 100%;
+        padding: 13px 18px;
+        border-radius: 13px;
+        background: linear-gradient(180deg, #ffcf54 0%, #f1a41c 100%);
+        color: #2b1802;
+        font-size: 1rem;
+        font-weight: 900;
+        border: 1.5px solid #ffe494;
+        border-bottom: 4px solid #b97507;
+        cursor: pointer;
+        box-shadow: 0 5px 14px rgba(241, 164, 28, 0.35);
+      }
+      .retry-btn:active {
+        transform: translateY(2px);
+      }
+      .tip {
+        margin-top: 14px;
+        font-size: 0.78rem;
+        color: #7a6856;
+        margin-bottom: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="card">
+      <img src="/art/icon-192.png" alt="BASTIÓN" class="crest" />
+      <div class="badge">BASTIÓN · Arena Táctica</div>
+      <h1 id="title">Despertando la Arena…</h1>
+      <p id="desc">
+        Estamos conectando con el servidor de <strong>BASTIÓN</strong>. Si el juego estuvo sin uso unos minutos,
+        el servidor gratuito tarda entre <strong>20 y 35 segundos</strong> en iniciar.
+      </p>
+
+      <div class="status-box">
+        <span class="spinner" aria-hidden="true"></span>
+        <span id="status-text">Comprobando conexión con el servidor…</span>
+      </div>
+
+      <button id="retry-btn" class="retry-btn" type="button">Reintentar ahora</button>
+      <p class="tip">Asegúrate de tener Wi‑Fi o datos móviles activos.</p>
+    </main>
+
+    <script>
+      (function () {
+        var APP_URL = 'https://bastion-arena.onrender.com/';
+        var HEALTH_URL = 'https://bastion-arena.onrender.com/api/health';
+        var attempts = 0;
+        var titleEl = document.getElementById('title');
+        var descEl = document.getElementById('desc');
+        var statusEl = document.getElementById('status-text');
+        var retryBtn = document.getElementById('retry-btn');
+
+        async function checkServer(manual) {
+          attempts += 1;
+          if (!navigator.onLine) {
+            titleEl.textContent = 'Sin conexión a Internet';
+            descEl.textContent = 'Tu celular parece no tener Wi‑Fi ni datos móviles disponibles en este momento.';
+            statusEl.textContent = 'Esperando señal de red…';
+            return;
+          }
+
+          titleEl.textContent = 'Despertando la Arena…';
+          statusEl.textContent = manual
+            ? 'Reconectando con la arena ahora…'
+            : 'Intentando conectar (intento ' + attempts + ')…';
+
+          try {
+            var controller = new AbortController();
+            var timer = setTimeout(function () {
+              controller.abort();
+            }, 6000);
+            var res = await fetch(HEALTH_URL, {
+              cache: 'no-store',
+              signal: controller.signal,
+            });
+            clearTimeout(timer);
+            if (res.ok) {
+              statusEl.textContent = '¡Arena lista! Entrando…';
+              window.location.replace(APP_URL);
+              return;
+            }
+            statusEl.textContent = 'Servidor iniciando (' + res.status + '), reintentando…';
+          } catch (_err) {
+            statusEl.textContent = 'Servidor aún despertando, reintento automático…';
+          }
+        }
+
+        retryBtn.addEventListener('click', function () {
+          checkServer(true);
+        });
+
+        window.addEventListener('online', function () {
+          checkServer(true);
+        });
+
+        checkServer(false);
+        setInterval(function () {
+          checkServer(false);
+        }, 3500);
+      })();
+    </script>
+  </body>
+</html>

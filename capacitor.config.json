@@ -1,0 +1,25 @@
+{
+  "appId": "com.bastion.arena",
+  "appName": "BASTIÓN",
+  "webDir": "dist",
+  "server": {
+    "url": "https://bastion-arena.onrender.com",
+    "cleartext": false,
+    "errorPath": "offline.html",
+    "allowNavigation": [
+      "bastion-arena.onrender.com",
+      "*.onrender.com"
+    ]
+  },
+  "android": {
+    "backgroundColor": "#12203a",
+    "allowMixedContent": false,
+    "captureInput": true
+  },
+  "plugins": {
+    "SystemBars": {
+      "style": "DARK",
+      "insetsHandling": "css"
+    }
+  }
+}
