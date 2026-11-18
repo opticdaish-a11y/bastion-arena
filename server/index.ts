@@ -164,7 +164,18 @@ app.get('/api/rooms', (_req, res) => {
 });
 
 const distDir = path.resolve(__dirname, '../dist');
-app.use(express.static(distDir));
+app.use(
+  express.static(distDir, {
+    setHeaders: (res, filePath) => {
+      if (filePath.endsWith('sw.js') || filePath.endsWith('index.html')) {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      } else if (filePath.endsWith('manifest.webmanifest')) {
+        res.setHeader('Content-Type', 'application/manifest+json; charset=utf-8');
+        res.setHeader('Cache-Control', 'no-cache');
+      }
+    },
+  })
+);
 
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server, path: '/ws' });
