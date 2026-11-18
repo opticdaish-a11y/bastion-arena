@@ -1,4 +1,4 @@
-import { Flame, Shield, Sparkles, Swords } from 'lucide-react';
+import { Flame, Hourglass, Shield, Sparkles, Swords, Zap } from 'lucide-react';
 import { HERO_TEMPLATES } from '../shared/heroesAndMaps';
 import type { HeroClassId } from '../shared/types';
 
@@ -11,13 +11,17 @@ export function HeroIcon({
 }) {
   switch (classId) {
     case 'vanguard':
-      return <Shield size={size} strokeWidth={2.2} />;
+      return <Shield size={size} strokeWidth={2.3} />;
     case 'rogue':
-      return <Swords size={size} strokeWidth={2.2} />;
+      return <Swords size={size} strokeWidth={2.3} />;
     case 'pyromancer':
-      return <Flame size={size} strokeWidth={2.2} />;
+      return <Flame size={size} strokeWidth={2.3} />;
     case 'guardian':
-      return <Sparkles size={size} strokeWidth={2.2} />;
+      return <Sparkles size={size} strokeWidth={2.3} />;
+    case 'berserker':
+      return <Zap size={size} strokeWidth={2.3} />;
+    case 'chronomancer':
+      return <Hourglass size={size} strokeWidth={2.3} />;
   }
 }
 

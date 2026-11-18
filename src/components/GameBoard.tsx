@@ -49,12 +49,18 @@ export interface ChatMsg {
   timestamp: number;
 }
 
+export interface MatchReward {
+  trophyDelta: number;
+  goldEarned: number;
+}
+
 interface GameBoardProps {
   state: GameState;
   mode: GameMode;
   myPlayerId: PlayerId | null;
   floatingFx: FloatingFx[];
   chatMessages: ChatMsg[];
+  lastReward: MatchReward | null;
   onAction: (action: GameAction) => void;
   onSendChat: (text: string) => void;
   onRematch: () => void;
@@ -67,6 +73,7 @@ export function GameBoard({
   myPlayerId,
   floatingFx,
   chatMessages,
+  lastReward,
   onAction,
   onSendChat,
   onRematch,
@@ -78,13 +85,12 @@ export function GameBoard({
   const [chatInput, setChatInput] = useState('');
   const [sharedResult, setSharedResult] = useState(false);
 
-  const arena = ARENAS[state.arenaId] || ARENAS.crucible;
+  const arena = ARENAS[state.arenaId] || ARENAS.sunlit_arena;
 
   const canControlActivePlayer =
     !state.winner &&
     (mode === 'local' || (myPlayerId !== null && state.activePlayer === myPlayerId));
 
-  // Auto-select a ready hero of the active player
   useEffect(() => {
     const activeHeroes = state.heroes.filter(
       (h) => h.owner === state.activePlayer && h.alive
@@ -128,34 +134,34 @@ export function GameBoard({
   }, [state.heroes, state.activePlayer]);
 
   const tacticalHint = useMemo(() => {
-    if (state.winner) return `¡Partida finalizada! ${state.playerNames[state.winner]} se alza con la victoria.`;
+    if (state.winner) return `¡Partida terminada! Ganó ${state.playerNames[state.winner]}.`;
     if (!canControlActivePlayer) {
       return mode === 'ai'
-        ? `${state.playerNames[2]} está calculando su movimiento...`
+        ? `${state.playerNames[2]} está pensando su jugada...`
         : `Esperando jugada de ${state.playerNames[state.activePlayer]}...`;
     }
     if (selectedSlot && selectedHero) {
       const abName = HERO_TEMPLATES[selectedHero.classId].abilities[selectedSlot].name;
       if (validTargets.length === 0) {
-        return `No hay objetivos válidos al alcance para ${abName}. Toca otra habilidad o muévete primero.`;
+        return `Sin alcance para ${abName}. Muévete primero o elige otra acción.`;
       }
-      return `Toca una casilla iluminada en naranja para lanzar ${abName}.`;
+      return `Toca un objetivo naranja en el tablero para usar ${abName}.`;
     }
     if (allActiveHeroesDone) {
-      return 'Todos tus héroes actuaron. Pulsa "Terminar Turno" para continuar.';
+      return '¡Todo listo! Pulsa el botón dorado "Terminar Turno".';
     }
     if (selectedHero) {
       if (!selectedHero.hasMoved && !selectedHero.hasActed) {
-        return `Toca una casilla azul para mover a ${selectedHero.name}, o elige una habilidad abajo.`;
+        return `Toca una casilla AZUL para mover a ${selectedHero.name}, o elige un poder.`;
       }
       if (!selectedHero.hasActed) {
-        return `${selectedHero.name} ya se movió: elige una habilidad o Fortificar.`;
+        return `${selectedHero.name} ya se movió: ataca, usa habilidad o Fortifica.`;
       }
       if (!selectedHero.hasMoved) {
         return `${selectedHero.name} aún puede moverse a una casilla azul.`;
       }
     }
-    return 'Toca uno de tus héroes en el tablero para darle órdenes.';
+    return 'Toca uno de tus héroes para darle órdenes.';
   }, [state, canControlActivePlayer, mode, selectedSlot, selectedHero, validTargets.length, allActiveHeroesDone]);
 
   const handleTileClick = (x: number, y: number) => {
@@ -199,7 +205,7 @@ export function GameBoard({
 
   const handleShareResult = async () => {
     if (!state.winner) return;
-    const summary = `⚔️ ¡Victoria de ${state.playerNames[state.winner]} en BASTIÓN!\n🏰 Arena: ${arena.name} | Turno ${state.turn}\n👑 Núcleo: ${state.bastionPoints[1]} - ${state.bastionPoints[2]}\n¿Me retas? 👉 ${window.location.origin}`;
+    const summary = `⚔️ ¡Victoria de ${state.playerNames[state.winner]} en BASTIÓN!\n🏰 ${arena.name} | Turno ${state.turn}\n👑 Núcleo: ${state.bastionPoints[1]} - ${state.bastionPoints[2]}\n¿Me retas? 👉 ${window.location.origin}`;
     if (navigator.share) {
       try {
         await navigator.share({ title: 'Resultado en BASTIÓN', text: summary, url: window.location.origin });
@@ -219,23 +225,23 @@ export function GameBoard({
       return (
         <>
           <div className="bastion-ring" />
-          <Crown size={20} className="tile-icon" color="#f7d486" />
+          <Crown size={20} className="tile-icon" color="#8a4c03" />
         </>
       );
     }
-    if (type === 'fountain') return <Droplets size={18} className="tile-icon" color="#4db87f" />;
+    if (type === 'fountain') return <Droplets size={18} className="tile-icon" color="#0d693b" />;
     if (type === 'rune') {
       return (
         <Zap
           size={18}
           className="tile-icon"
-          color={runeReady ? '#7cd0ff' : '#4a5468'}
-          style={{ opacity: runeReady ? 0.9 : 0.3 }}
+          color={runeReady ? '#0d4e96' : '#73654d'}
+          style={{ opacity: runeReady ? 0.95 : 0.35 }}
         />
       );
     }
-    if (type === 'trap') return <AlertTriangle size={16} className="tile-icon" color="#de5656" />;
-    if (type === 'fire') return <Flame size={19} className="tile-icon" color="#ffa952" style={{ opacity: 0.92 }} />;
+    if (type === 'trap') return <AlertTriangle size={16} className="tile-icon" color="#991b1b" />;
+    if (type === 'fire') return <Flame size={19} className="tile-icon" color="#9a2600" />;
     return null;
   };
 
@@ -244,7 +250,6 @@ export function GameBoard({
 
   return (
     <div className="battle-stage">
-      {/* Dynamic Arena Illustrated Backdrop */}
       <div
         className="arena-backdrop-layer"
         style={{ backgroundImage: `url('${arena.backdrop}')` }}
@@ -252,11 +257,11 @@ export function GameBoard({
       <div className="arena-backdrop-vignette" />
 
       <div className="game-layout">
-        {/* Left Column: Squad Rosters & Combat Log */}
+        {/* Left Column: Roster & Combat Log */}
         <aside className="sidebar-col">
-          <div className="panel" style={{ padding: '14px' }}>
-            <h3 className="panel-title" style={{ fontSize: '0.88rem', marginBottom: '10px' }}>
-              Escuadrones en Arena
+          <div className="parchment-panel" style={{ padding: '14px' }}>
+            <h3 className="section-heading" style={{ fontSize: '0.96rem', marginBottom: '10px' }}>
+              Héroes en Arena
             </h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               {[...p1Heroes, ...p2Heroes].map((h) => {
@@ -276,33 +281,33 @@ export function GameBoard({
                   >
                     <div
                       className="roster-thumb"
-                      style={{ borderColor: h.owner === 1 ? 'var(--p1-color)' : 'var(--p2-color)' }}
+                      style={{ borderColor: h.owner === 1 ? 'var(--blue-main)' : 'var(--red-main)' }}
                     >
                       <HeroPortrait classId={h.classId} />
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3px' }}>
-                        <span style={{ fontWeight: 700, fontSize: '0.84rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {h.name}
+                        <span style={{ fontWeight: 800, fontSize: '0.88rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {h.name} <span style={{ fontSize: '0.72rem', color: 'var(--ink-muted)' }}>Nv.{h.level}</span>
                         </span>
-                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+                        <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.76rem', fontWeight: 700 }}>
                           {h.alive ? `${h.hp}/${h.maxHp}` : 'CAÍDO'}
                         </span>
                       </div>
-                      <div style={{ height: '5px', background: '#090b10', borderRadius: '4px', overflow: 'hidden', marginBottom: '4px' }}>
+                      <div style={{ height: '6px', background: '#dfd2b8', borderRadius: '99px', overflow: 'hidden', marginBottom: '4px' }}>
                         <div
                           style={{
                             height: '100%',
                             width: `${(h.hp / h.maxHp) * 100}%`,
-                            background: h.owner === 1 ? 'var(--p1-color)' : 'var(--p2-color)',
+                            background: h.owner === 1 ? 'var(--blue-main)' : 'var(--red-main)',
                             transition: 'width 0.25s ease',
                           }}
                         />
                       </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.69rem', color: 'var(--text-muted)' }}>
-                        <span>{tpl.title}</span>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.72rem', color: 'var(--ink-secondary)', fontWeight: 600 }}>
+                        <span>{tpl.role}</span>
                         <span>
-                          {h.shield > 0 && `🛡${h.shield} `}
+                          {h.shield > 0 && `🛡️${h.shield} `}
                           {h.statuses.poison > 0 && '☠️'}
                           {h.statuses.burn > 0 && '🔥'}
                           {h.statuses.rooted > 0 && '🌿'}
@@ -315,9 +320,9 @@ export function GameBoard({
             </div>
           </div>
 
-          <div className="panel" style={{ padding: '14px' }}>
-            <h3 className="panel-title" style={{ fontSize: '0.88rem', marginBottom: '10px' }}>
-              Crónica de Batalla
+          <div className="parchment-panel" style={{ padding: '14px' }}>
+            <h3 className="section-heading" style={{ fontSize: '0.96rem', marginBottom: '10px' }}>
+              Registro de Batalla
             </h3>
             <div className="combat-log">
               {state.log.map((entry) => (
@@ -325,7 +330,7 @@ export function GameBoard({
                   key={entry.id}
                   className={`log-entry ${entry.player === 1 ? 'p1' : entry.player === 2 ? 'p2' : 'system'}`}
                 >
-                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.67rem', opacity: 0.65, marginRight: '6px' }}>
+                  <span style={{ fontFamily: 'var(--font-mono)', fontSize: '0.7rem', opacity: 0.7, marginRight: '6px' }}>
                     T{entry.turn}
                   </span>
                   {entry.text}
@@ -335,7 +340,7 @@ export function GameBoard({
           </div>
         </aside>
 
-        {/* Center Column: Versus Scoreboard, Hint, 9x9 Sculpted Board */}
+        {/* Center Column: Scoreboard + Hint + 9x9 Board */}
         <section>
           <div className="scoreboard">
             <div className="player-badge p1">
@@ -343,14 +348,14 @@ export function GameBoard({
                 <span
                   className="turn-dot"
                   style={{
-                    background: state.activePlayer === 1 ? 'var(--p1-color)' : 'var(--text-muted)',
-                    boxShadow: state.activePlayer === 1 ? '0 0 10px var(--p1-color)' : 'none',
+                    background: state.activePlayer === 1 ? 'var(--blue-main)' : '#bfb297',
+                    boxShadow: state.activePlayer === 1 ? '0 0 8px var(--blue-main)' : 'none',
                   }}
                 />
                 <span>{state.playerNames[1]}</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                <div className="bastion-pips" title={`Puntos de Núcleo: ${state.bastionPoints[1]}/${state.bastionGoal}`}>
+                <div className="bastion-pips" title={`Núcleo: ${state.bastionPoints[1]}/${state.bastionGoal}`}>
                   {Array.from({ length: state.bastionGoal }).map((_, i) => (
                     <span key={i} className={`bastion-pip ${i < state.bastionPoints[1] ? 'filled' : ''}`} />
                   ))}
@@ -365,7 +370,7 @@ export function GameBoard({
 
             <div className="turn-center">
               <div className="turn-num">TURNO {state.turn}</div>
-              <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginTop: '1px' }}>
+              <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--ink-secondary)' }}>
                 {arena.name}
               </div>
             </div>
@@ -376,8 +381,8 @@ export function GameBoard({
                 <span
                   className="turn-dot"
                   style={{
-                    background: state.activePlayer === 2 ? 'var(--p2-color)' : 'var(--text-muted)',
-                    boxShadow: state.activePlayer === 2 ? '0 0 10px var(--p2-color)' : 'none',
+                    background: state.activePlayer === 2 ? 'var(--red-main)' : '#bfb297',
+                    boxShadow: state.activePlayer === 2 ? '0 0 8px var(--red-main)' : 'none',
                   }}
                 />
               </div>
@@ -387,7 +392,7 @@ export function GameBoard({
                     <span key={i} className={`energy-pip ${i < state.energy[2] ? 'filled' : ''}`} />
                   ))}
                 </div>
-                <div className="bastion-pips" title={`Puntos de Núcleo: ${state.bastionPoints[2]}/${state.bastionGoal}`}>
+                <div className="bastion-pips" title={`Núcleo: ${state.bastionPoints[2]}/${state.bastionGoal}`}>
                   {Array.from({ length: state.bastionGoal }).map((_, i) => (
                     <span key={i} className={`bastion-pip ${i < state.bastionPoints[2] ? 'filled' : ''}`} />
                   ))}
@@ -397,7 +402,7 @@ export function GameBoard({
           </div>
 
           <div className="tactical-hint-bar">
-            <Info size={15} color="#e0b35a" style={{ flexShrink: 0 }} />
+            <Info size={16} color="#b97507" style={{ flexShrink: 0 }} />
             <span>{tacticalHint}</span>
           </div>
 
@@ -442,21 +447,6 @@ export function GameBoard({
                       onClick={() => handleTileClick(x, y)}
                       onMouseEnter={() => setHoverCoord({ x, y })}
                       onMouseLeave={() => setHoverCoord(null)}
-                      title={
-                        tile.type === 'bastion'
-                          ? 'Núcleo del Bastión (+1 Punto al terminar turno aquí)'
-                          : tile.type === 'fountain'
-                          ? 'Fuente Curativa (+3 PV al inicio del turno)'
-                          : tile.type === 'rune'
-                          ? 'Runa de Poder (+1 Energía, +2 Escudo)'
-                          : tile.type === 'trap'
-                          ? 'Trampa de Pinchos (-3 PV al pisar)'
-                          : tile.type === 'fire'
-                          ? 'Llamas (-3 PV y Quemadura)'
-                          : tile.type === 'wall'
-                          ? 'Pilar de Obsidiana'
-                          : undefined
-                      }
                     >
                       {renderTileDetail(tile.type, tile.runeReady)}
 
@@ -478,16 +468,16 @@ export function GameBoard({
 
                           <div className="hero-status-dots">
                             {occupant.statuses.poison > 0 && (
-                              <span className="status-dot" style={{ background: '#4db87f' }} title="Envenenado" />
+                              <span className="status-dot" style={{ background: '#29a867' }} />
                             )}
                             {occupant.statuses.burn > 0 && (
-                              <span className="status-dot" style={{ background: '#e67e35' }} title="Quemadura" />
+                              <span className="status-dot" style={{ background: '#e67e35' }} />
                             )}
                             {occupant.statuses.rooted > 0 && (
-                              <span className="status-dot" style={{ background: '#a68b5b' }} title="Inmovilizado" />
+                              <span className="status-dot" style={{ background: '#8b5e34' }} />
                             )}
                             {occupant.statuses.backstab && (
-                              <span className="status-dot" style={{ background: '#f8fafc' }} title="Sigilo +3 ATQ" />
+                              <span className="status-dot" style={{ background: '#1e293b' }} />
                             )}
                           </div>
 
@@ -496,7 +486,7 @@ export function GameBoard({
                               className="hero-hp-fill"
                               style={{
                                 width: `${(occupant.hp / occupant.maxHp) * 100}%`,
-                                background: occupant.owner === 1 ? '#58b4ff' : '#ff5e5e',
+                                background: occupant.owner === 1 ? '#3b8de3' : '#ef4444',
                               }}
                             />
                           </div>
@@ -523,64 +513,66 @@ export function GameBoard({
           </div>
         </section>
 
-        {/* Right Column / Mobile Command Dock */}
+        {/* Right Column / Command Dock */}
         <aside className="sidebar-col">
-          <div className="panel" style={{ padding: '15px' }}>
+          <div className="parchment-panel" style={{ padding: '15px' }}>
             {selectedHero ? (
               <>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '10px' }}>
                   <div
                     className="roster-thumb"
                     style={{
                       width: '48px',
                       height: '48px',
-                      borderColor: selectedHero.owner === 1 ? 'var(--p1-color)' : 'var(--p2-color)',
+                      borderColor: selectedHero.owner === 1 ? 'var(--blue-main)' : 'var(--red-main)',
                     }}
                   >
                     <HeroPortrait classId={selectedHero.classId} />
                   </div>
                   <div style={{ flex: 1 }}>
-                    <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.05rem', color: 'var(--accent-gold-bright)' }}>
+                    <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: '1.1rem' }}>
                       {selectedHero.name}
                     </h3>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                      {HERO_TEMPLATES[selectedHero.classId].title}
+                    <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--ink-secondary)' }}>
+                      {HERO_TEMPLATES[selectedHero.classId].title} (Nv.{selectedHero.level})
                     </span>
                   </div>
-                  <div style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: '0.78rem' }}>
-                    <div><strong>{selectedHero.hp}</strong>/{selectedHero.maxHp} PV</div>
-                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                  <div style={{ textAlign: 'right', fontFamily: 'var(--font-mono)', fontSize: '0.82rem', fontWeight: 700 }}>
+                    <div>{selectedHero.hp}/{selectedHero.maxHp} PV</div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--ink-secondary)' }}>
                       MOV {selectedHero.move} · RNG {selectedHero.range}
                     </div>
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', gap: '6px', fontSize: '0.73rem', marginBottom: '12px' }}>
+                <div style={{ display: 'flex', gap: '6px', fontSize: '0.76rem', fontWeight: 700, marginBottom: '10px' }}>
                   <span
                     style={{
                       flex: 1,
                       textAlign: 'center',
-                      padding: '4px 6px',
-                      borderRadius: '6px',
-                      background: selectedHero.hasMoved ? 'rgba(11,13,18,0.65)' : 'rgba(79, 155, 224, 0.16)',
-                      border: `1px solid ${selectedHero.hasMoved ? 'var(--border-iron)' : 'rgba(79, 155, 224, 0.5)'}`,
-                      color: selectedHero.hasMoved ? 'var(--text-muted)' : '#9fd5ff',
+                      padding: '5px',
+                      borderRadius: '8px',
+                      background: selectedHero.hasMoved ? '#e8dcc3' : '#dceeff',
+                      color: selectedHero.hasMoved ? 'var(--ink-muted)' : '#164d8c',
+                      border: '1.5px solid',
+                      borderColor: selectedHero.hasMoved ? '#cbb996' : '#85beff',
                     }}
                   >
-                    {selectedHero.hasMoved ? 'Mov. usado' : 'Mov. listo'}
+                    {selectedHero.hasMoved ? 'Mov. usado' : '✓ Puede moverse'}
                   </span>
                   <span
                     style={{
                       flex: 1,
                       textAlign: 'center',
-                      padding: '4px 6px',
-                      borderRadius: '6px',
-                      background: selectedHero.hasActed ? 'rgba(11,13,18,0.65)' : 'rgba(224, 179, 90, 0.16)',
-                      border: `1px solid ${selectedHero.hasActed ? 'var(--border-iron)' : 'rgba(224, 179, 90, 0.5)'}`,
-                      color: selectedHero.hasActed ? 'var(--text-muted)' : 'var(--accent-gold-bright)',
+                      padding: '5px',
+                      borderRadius: '8px',
+                      background: selectedHero.hasActed ? '#e8dcc3' : '#fff0c7',
+                      color: selectedHero.hasActed ? 'var(--ink-muted)' : '#8f5504',
+                      border: '1.5px solid',
+                      borderColor: selectedHero.hasActed ? '#cbb996' : '#f1b84b',
                     }}
                   >
-                    {selectedHero.hasActed ? 'Acción usada' : 'Acción lista'}
+                    {selectedHero.hasActed ? 'Acción usada' : '✓ Puede actuar'}
                   </span>
                 </div>
 
@@ -631,6 +623,7 @@ export function GameBoard({
                   <button
                     id="fortify-btn"
                     className="btn btn-secondary"
+                    style={{ padding: '9px' }}
                     disabled={
                       !canControlActivePlayer ||
                       selectedHero.owner !== state.activePlayer ||
@@ -651,16 +644,16 @@ export function GameBoard({
                 </div>
               </>
             ) : (
-              <p style={{ fontSize: '0.84rem', color: 'var(--text-secondary)' }}>
-                Toca uno de tus héroes en el tablero para ver sus acciones.
+              <p style={{ fontSize: '0.86rem', fontWeight: 600, color: 'var(--ink-secondary)' }}>
+                Toca uno de tus héroes en el tablero para darle órdenes.
               </p>
             )}
 
-            <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--border-subtle)' }}>
+            <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1.5px solid var(--parchment-border)' }}>
               <button
                 id="end-turn-btn"
                 className={`btn btn-primary ${allActiveHeroesDone && canControlActivePlayer ? 'end-turn-pulse' : ''}`}
-                style={{ width: '100%', padding: '12px', fontSize: '0.94rem' }}
+                style={{ width: '100%', padding: '13px', fontSize: '1rem' }}
                 disabled={!canControlActivePlayer}
                 onClick={() => {
                   sound.play('click');
@@ -668,39 +661,39 @@ export function GameBoard({
                   onAction({ type: 'END_TURN', player: state.activePlayer });
                 }}
               >
-                <SkipForward size={17} />
+                <SkipForward size={18} />
                 Terminar Turno
               </button>
             </div>
           </div>
 
           {mode === 'online' && (
-            <div className="panel" style={{ padding: '14px' }}>
-              <h3 className="panel-title" style={{ fontSize: '0.88rem', marginBottom: '8px' }}>
-                <MessageSquare size={15} />
+            <div className="parchment-panel" style={{ padding: '14px' }}>
+              <h3 className="section-heading" style={{ fontSize: '0.94rem', marginBottom: '8px' }}>
+                <MessageSquare size={16} color="#1e62b5" />
                 Chat de Sala
               </h3>
               <div
                 style={{
-                  maxHeight: '130px',
+                  maxHeight: '120px',
                   overflowY: 'auto',
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: '6px',
+                  gap: '5px',
                   marginBottom: '8px',
                 }}
               >
                 {chatMessages.length === 0 ? (
-                  <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                  <p style={{ fontSize: '0.78rem', color: 'var(--ink-muted)' }}>
                     Envía un saludo o GG a tu rival...
                   </p>
                 ) : (
                   chatMessages.map((m, i) => (
-                    <div key={i} style={{ fontSize: '0.77rem', lineHeight: 1.35 }}>
-                      <strong style={{ color: m.playerId === 1 ? 'var(--p1-color)' : 'var(--p2-color)' }}>
+                    <div key={i} style={{ fontSize: '0.8rem', lineHeight: 1.35 }}>
+                      <strong style={{ color: m.playerId === 1 ? 'var(--blue-dark)' : 'var(--red-dark)' }}>
                         {m.sender}:
                       </strong>{' '}
-                      <span style={{ color: 'var(--text-primary)' }}>{m.text}</span>
+                      <span>{m.text}</span>
                     </div>
                   ))
                 )}
@@ -720,9 +713,9 @@ export function GameBoard({
                   onChange={(e) => setChatInput(e.target.value)}
                   placeholder="Mensaje..."
                   maxLength={140}
-                  style={{ flex: 1, padding: '7px 10px', fontSize: '0.8rem' }}
+                  style={{ flex: 1, padding: '7px 10px', fontSize: '0.84rem' }}
                 />
-                <button type="submit" className="btn btn-secondary" style={{ padding: '7px 10px' }}>
+                <button type="submit" className="btn btn-blue" style={{ padding: '7px 11px' }}>
                   <Send size={14} />
                 </button>
               </form>
@@ -731,50 +724,46 @@ export function GameBoard({
         </aside>
       </div>
 
-      {/* Victory Modal with Shareable Match Summary */}
+      {/* Victory Modal with Trophies & Gold Rewards */}
       {state.winner && (
         <div className="modal-backdrop">
           <div className="modal-card">
-            <Crown size={46} color="#f7d486" style={{ margin: '0 auto 10px', filter: 'drop-shadow(0 0 12px rgba(224,179,90,0.5))' }} />
+            <Crown size={46} color="#e09316" style={{ margin: '0 auto 8px' }} />
             <h2>¡Victoria de {state.playerNames[state.winner]}!</h2>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '0.92rem', marginBottom: '16px' }}>
-              {state.winReason} en el Turno {state.turn}.
+            <p style={{ color: 'var(--ink-secondary)', fontSize: '0.94rem', fontWeight: 600, marginBottom: '14px' }}>
+              {state.winReason} · Turno {state.turn}
             </p>
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-around',
-                background: 'rgba(11,13,18,0.7)',
-                border: '1px solid var(--border-iron)',
-                borderRadius: '10px',
-                padding: '10px',
-                marginBottom: '20px',
-                fontSize: '0.82rem',
-              }}
-            >
-              <div>
-                <div style={{ color: 'var(--text-muted)', fontSize: '0.7rem' }}>NÚCLEO</div>
-                <strong style={{ fontFamily: 'var(--font-mono)' }}>
-                  {state.bastionPoints[1]} - {state.bastionPoints[2]}
-                </strong>
+
+            {lastReward && (
+              <div
+                style={{
+                  background: '#ffffff',
+                  border: '2px solid var(--gold-main)',
+                  borderRadius: '12px',
+                  padding: '10px 14px',
+                  marginBottom: '14px',
+                  display: 'flex',
+                  justifyContent: 'space-around',
+                  fontFamily: 'var(--font-display)',
+                  fontWeight: 800,
+                }}
+              >
+                <span style={{ color: lastReward.trophyDelta >= 0 ? '#1d9658' : '#cc3636' }}>
+                  🏆 {lastReward.trophyDelta >= 0 ? `+${lastReward.trophyDelta}` : lastReward.trophyDelta} Copas
+                </span>
+                <span style={{ color: '#b97507' }}>
+                  🪙 +{lastReward.goldEarned} Oro
+                </span>
               </div>
-              <div>
-                <div style={{ color: 'var(--text-muted)', fontSize: '0.7rem' }}>ARENA</div>
-                <strong>{arena.name}</strong>
-              </div>
-              <div>
-                <div style={{ color: 'var(--text-muted)', fontSize: '0.7rem' }}>TURNOS</div>
-                <strong style={{ fontFamily: 'var(--font-mono)' }}>{state.turn}</strong>
-              </div>
-            </div>
+            )}
 
             <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap' }}>
               <button id="rematch-btn" className="btn btn-primary" onClick={onRematch}>
                 <RotateCcw size={16} />
                 Revancha
               </button>
-              <button id="share-victory-btn" className="btn btn-secondary" onClick={handleShareResult}>
-                {sharedResult ? <Check size={16} color="#4db87f" /> : <Share2 size={16} />}
+              <button id="share-victory-btn" className="btn btn-blue" onClick={handleShareResult}>
+                {sharedResult ? <Check size={16} /> : <Share2 size={16} />}
                 {sharedResult ? '¡Copiado!' : 'Compartir'}
               </button>
               <button id="back-lobby-btn" className="btn btn-secondary" onClick={onExitToLobby}>

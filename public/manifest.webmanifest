@@ -4,8 +4,8 @@
   "description": "Combate táctico por turnos en arena 9x9. Multijugador online, duelo local y contra IA.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0b0d12",
-  "theme_color": "#0b0d12",
+  "background_color": "#1a2b4c",
+  "theme_color": "#1a2b4c",
   "orientation": "any",
   "icons": [
     {

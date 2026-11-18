@@ -1,15 +1,18 @@
 import express from 'express';
+import fs from 'fs';
 import http from 'http';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { WebSocketServer, WebSocket } from 'ws';
 import { applyGameAction, createInitialGameState } from '../src/shared/gameEngine';
+import { getRankInfo } from '../src/shared/heroesAndMaps';
 import type {
   ArenaId,
   GameAction,
   GameEvent,
   GameState,
   HeroClassId,
+  LeaderboardEntry,
   PlayerId,
   RoomSummary,
 } from '../src/shared/types';
@@ -21,6 +24,72 @@ const PORT = Number(process.env.PORT) || 3001;
 const app = express();
 app.use(express.json());
 
+// ==================== PERSISTENT LEADERBOARD ====================
+const DATA_DIR = path.resolve(__dirname, '../data');
+const LEADERBOARD_FILE = path.join(DATA_DIR, 'leaderboard.json');
+
+const SEED_LEADERS: LeaderboardEntry[] = [
+  { name: 'Valerius_Rex', trophies: 840, wins: 28, losses: 5, streak: 6, rankName: 'Leyenda del Bastión', updatedAt: Date.now() },
+  { name: 'Lady_Lyra', trophies: 620, wins: 21, losses: 7, streak: 3, rankName: 'Diamante Real', updatedAt: Date.now() },
+  { name: 'Thorak_Pro', trophies: 460, wins: 15, losses: 6, streak: 2, rankName: 'Platino Solar', updatedAt: Date.now() },
+  { name: 'Ignis_Master', trophies: 310, wins: 11, losses: 5, streak: 1, rankName: 'Paladín de Oro', updatedAt: Date.now() },
+  { name: 'Sylva_Guard', trophies: 195, wins: 7, losses: 4, streak: 2, rankName: 'Escudero de Plata', updatedAt: Date.now() },
+];
+
+function loadLeaderboard(): LeaderboardEntry[] {
+  try {
+    if (fs.existsSync(LEADERBOARD_FILE)) {
+      const parsed = JSON.parse(fs.readFileSync(LEADERBOARD_FILE, 'utf8'));
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch {
+    // fallback to seed
+  }
+  return [...SEED_LEADERS];
+}
+
+function saveLeaderboard(entries: LeaderboardEntry[]) {
+  try {
+    if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+    fs.writeFileSync(LEADERBOARD_FILE, JSON.stringify(entries, null, 2));
+  } catch {
+    // ignore write errors
+  }
+}
+
+let leaderboard: LeaderboardEntry[] = loadLeaderboard();
+
+function upsertLeaderboard(entry: Partial<LeaderboardEntry> & { name: string }) {
+  const cleanName = String(entry.name || 'Comandante').trim().slice(0, 20) || 'Comandante';
+  const idx = leaderboard.findIndex(
+    (e) => e.name.toLowerCase() === cleanName.toLowerCase()
+  );
+  const trophies = Math.max(0, Number(entry.trophies ?? 100));
+  const updated: LeaderboardEntry = {
+    name: cleanName,
+    trophies,
+    wins: Number(entry.wins ?? 0),
+    losses: Number(entry.losses ?? 0),
+    streak: Number(entry.streak ?? 0),
+    rankName: getRankInfo(trophies).name,
+    updatedAt: Date.now(),
+  };
+
+  if (idx >= 0) {
+    // Keep highest trophies/stats
+    leaderboard[idx] = {
+      ...leaderboard[idx],
+      ...updated,
+    };
+  } else {
+    leaderboard.push(updated);
+  }
+  leaderboard.sort((a, b) => b.trophies - a.trophies);
+  if (leaderboard.length > 30) leaderboard = leaderboard.slice(0, 30);
+  saveLeaderboard(leaderboard);
+}
+
+// ==================== MULTIPLAYER ROOMS ====================
 interface ClientConn {
   ws: WebSocket;
   playerId: PlayerId;
@@ -62,7 +131,20 @@ function broadcastRoom(room: Room, payload: unknown) {
 }
 
 app.get('/api/health', (_req, res) => {
-  res.json({ ok: true, rooms: rooms.size });
+  res.json({ ok: true, rooms: rooms.size, leaders: leaderboard.length });
+});
+
+app.get('/api/leaderboard', (_req, res) => {
+  res.json({ leaderboard: leaderboard.slice(0, 20) });
+});
+
+app.post('/api/leaderboard/report', (req, res) => {
+  const body = req.body || {};
+  if (!body.name) {
+    return res.status(400).json({ error: 'Nombre requerido' });
+  }
+  upsertLeaderboard(body);
+  res.json({ leaderboard: leaderboard.slice(0, 20) });
 });
 
 app.get('/api/rooms', (_req, res) => {
@@ -81,7 +163,6 @@ app.get('/api/rooms', (_req, res) => {
   res.json({ rooms: list });
 });
 
-// Serve production build if present
 const distDir = path.resolve(__dirname, '../dist');
 app.use(express.static(distDir));
 
@@ -103,7 +184,7 @@ wss.on('connection', (ws) => {
     if (msg.type === 'CREATE_ROOM') {
       const code = generateRoomCode();
       const playerName = String(msg.playerName || 'Anfitrión').slice(0, 20);
-      const arenaId: ArenaId = msg.arenaId || 'crucible';
+      const arenaId: ArenaId = msg.arenaId || 'sunlit_arena';
       const team: HeroClassId[] = Array.isArray(msg.team) && msg.team.length > 0
         ? msg.team.slice(0, 2)
         : ['vanguard', 'pyromancer'];
@@ -246,7 +327,6 @@ wss.on('connection', (ws) => {
   });
 });
 
-// Cleanup stale waiting rooms every 5 minutes
 setInterval(() => {
   const now = Date.now();
   for (const [code, room] of rooms.entries()) {

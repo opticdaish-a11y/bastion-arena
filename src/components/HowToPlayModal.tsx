@@ -19,7 +19,7 @@ export function HowToPlayModal({ onClose }: HowToPlayModalProps) {
           </button>
         </div>
 
-        <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem', lineHeight: 1.5, marginBottom: '16px' }}>
+        <p style={{ color: 'var(--ink-secondary)', fontSize: '0.88rem', lineHeight: 1.5, marginBottom: '16px', fontWeight: 600 }}>
           Combate táctico por turnos en una arena de 9×9. Gana quien <strong>derrote a todos los héroes rivales</strong> o acumule <strong>5 puntos</strong> en el Núcleo del Bastión.
         </p>
 
@@ -49,34 +49,34 @@ export function HowToPlayModal({ onClose }: HowToPlayModalProps) {
           </div>
         </div>
 
-        <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '0.92rem', color: 'var(--accent-gold)', margin: '16px 0 10px' }}>
+        <h3 style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '0.95rem', color: '#9e6004', margin: '16px 0 10px' }}>
           Casillas Especiales de la Arena
         </h3>
 
         <div className="guide-tiles-grid">
           <div className="guide-tile-item">
-            <Crown size={18} color="#e6ba5c" />
+            <Crown size={18} color="#b97507" />
             <div>
               <strong>Núcleo del Bastión</strong>
               <span>+1 Punto al terminar tu turno encima.</span>
             </div>
           </div>
           <div className="guide-tile-item">
-            <Zap size={18} color="#5ea5db" />
+            <Zap size={18} color="#1d68b8" />
             <div>
               <strong>Runa de Poder</strong>
               <span>+1 Energía y +2 Escudo al pisarla.</span>
             </div>
           </div>
           <div className="guide-tile-item">
-            <Droplets size={18} color="#4ca674" />
+            <Droplets size={18} color="#1d9658" />
             <div>
               <strong>Fuente Curativa</strong>
               <span>Recupera +3 PV al iniciar tu turno aquí.</span>
             </div>
           </div>
           <div className="guide-tile-item">
-            <AlertTriangle size={18} color="#d65656" />
+            <AlertTriangle size={18} color="#cc3636" />
             <div>
               <strong>Trampa de Pinchos</strong>
               <span>Inflige 3 de daño directo al pisarla.</span>

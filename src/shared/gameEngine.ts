@@ -1,4 +1,4 @@
-import { ARENAS, charToTileType, HERO_TEMPLATES } from './heroesAndMaps';
+import { ARENAS, charToTileType, getHeroUpgradeBonus, HERO_TEMPLATES } from './heroesAndMaps';
 import type {
   AbilityDef,
   AbilitySlot,
@@ -70,10 +70,12 @@ export interface CreateGameOptions {
   p1Team: HeroClassId[];
   p2Team: HeroClassId[];
   playerNames?: Record<PlayerId, string>;
+  p1Levels?: Partial<Record<HeroClassId, number>>;
+  p2Levels?: Partial<Record<HeroClassId, number>>;
 }
 
 export function createInitialGameState(opts: CreateGameOptions): GameState {
-  const arena = ARENAS[opts.arenaId] || ARENAS.crucible;
+  const arena = ARENAS[opts.arenaId] || ARENAS.sunlit_arena;
   const grid: Tile[][] = arena.layout.map((row, y) =>
     row.split('').map((ch, x) => {
       const t = charToTileType(ch);
@@ -87,7 +89,6 @@ export function createInitialGameState(opts: CreateGameOptions): GameState {
     })
   );
 
-  // Spawn positions: P1 on left/bottom-left, P2 on right/top-right
   const p1Spawns: Coord[] = [
     { x: 1, y: 7 },
     { x: 0, y: 5 },
@@ -103,18 +104,21 @@ export function createInitialGameState(opts: CreateGameOptions): GameState {
     classId: HeroClassId,
     owner: PlayerId,
     idx: number,
-    spawn: Coord
+    spawn: Coord,
+    level: number
   ): HeroInstance => {
     const tpl = HERO_TEMPLATES[classId];
+    const bonus = getHeroUpgradeBonus(level);
     return {
       id: `p${owner}_${classId}_${idx}`,
       owner,
       classId,
       name: tpl.name,
-      hp: tpl.maxHp,
-      maxHp: tpl.maxHp,
-      shield: 0,
-      atk: tpl.atk,
+      level,
+      hp: tpl.maxHp + bonus.hpBonus,
+      maxHp: tpl.maxHp + bonus.hpBonus,
+      shield: bonus.startShield,
+      atk: tpl.atk + bonus.atkBonus,
       move: tpl.move,
       range: tpl.range,
       pos: { ...spawn },
@@ -133,8 +137,12 @@ export function createInitialGameState(opts: CreateGameOptions): GameState {
   };
 
   const heroes: HeroInstance[] = [
-    ...opts.p1Team.map((c, i) => makeHero(c, 1, i, p1Spawns[i % p1Spawns.length])),
-    ...opts.p2Team.map((c, i) => makeHero(c, 2, i, p2Spawns[i % p2Spawns.length])),
+    ...opts.p1Team.map((c, i) =>
+      makeHero(c, 1, i, p1Spawns[i % p1Spawns.length], opts.p1Levels?.[c] ?? 1)
+    ),
+    ...opts.p2Team.map((c, i) =>
+      makeHero(c, 2, i, p2Spawns[i % p2Spawns.length], opts.p2Levels?.[c] ?? 1)
+    ),
   ];
 
   return {
@@ -155,7 +163,7 @@ export function createInitialGameState(opts: CreateGameOptions): GameState {
         id: 'init',
         turn: 1,
         player: 0,
-        text: `¡Comienza la batalla en ${arena.name}! Elimina al rival o acumula 5 pts en el Núcleo.`,
+        text: `¡Comienza la batalla en ${arena.name}! Derrota al rival o alcanza 5 pts en el Núcleo.`,
         kind: 'system',
       },
     ],
@@ -265,7 +273,6 @@ export function getAbilityAoeTiles(
   const ability = getAbilityDef(hero, slot);
   if (!ability.aoeRadius) return [target];
 
-  // Rogue skill2 (Lluvia de Dagas): cross pattern (+)
   if (hero.classId === 'rogue' && slot === 'skill2') {
     const candidates = [
       target,
@@ -277,7 +284,6 @@ export function getAbilityAoeTiles(
     return candidates.filter((c) => inBounds(c, state.boardSize) && state.grid[c.y][c.x].type !== 'wall');
   }
 
-  // Pyromancer skill2 (Muro de Brasas): 3-tile line perpendicular to cast direction
   if (hero.classId === 'pyromancer' && slot === 'skill2') {
     const dx = Math.abs(target.x - hero.pos.x);
     const dy = Math.abs(target.y - hero.pos.y);
@@ -288,7 +294,7 @@ export function getAbilityAoeTiles(
     return line.filter((c) => inBounds(c, state.boardSize) && state.grid[c.y][c.x].type !== 'wall');
   }
 
-  // Pyromancer skill1 (Bola de Fuego): full 3x3
+  // 3x3 ring (Pyromancer Bola de Fuego, Berserker Salto Sísmico)
   const tiles: Coord[] = [];
   for (let dy = -1; dy <= 1; dy++) {
     for (let dx = -1; dx <= 1; dx++) {
@@ -476,12 +482,11 @@ export function applyGameAction(
     if (action.slot === 'skill1') hero.cooldowns.skill1 = ability.cooldown;
     if (action.slot === 'skill2') hero.cooldowns.skill2 = ability.cooldown;
 
-    const bonusDmg = hero.statuses.backstab ? 3 : 0;
+    const bonusDmg = (hero.statuses.backstab ? 3 : 0) + (hero.atk - HERO_TEMPLATES[hero.classId].atk);
 
-    // Execute specific ability effects
     if (action.slot === 'basic') {
       const target = getHeroAt(state, action.target)!;
-      const total = hero.atk + bonusDmg;
+      const total = hero.atk + (hero.statuses.backstab ? 3 : 0);
       hero.statuses.backstab = false;
       dealDamage(state, target, total, events, hero.name);
       addLog(
@@ -495,7 +500,6 @@ export function applyGameAction(
         addLog(state, target.owner, `${target.name} contraataca a ${hero.name} (-2 PV).`, 'attack');
       }
     } else if (hero.classId === 'vanguard' && action.slot === 'skill1') {
-      // Embestida de Escudo: dash adjacent + 5 dmg + push 1
       const target = getHeroAt(state, action.target)!;
       const dx = Math.sign(target.pos.x - hero.pos.x);
       const dy = Math.sign(target.pos.y - hero.pos.y);
@@ -520,7 +524,7 @@ export function applyGameAction(
       hero.shield += 6;
       hero.statuses.taunt = true;
       events.push({ type: 'shield', coord: { ...hero.pos }, label: '+6 ESCUDO', sound: 'shield' });
-      addLog(state, hero.owner, `${hero.name} activa Égida Inquebrantable (+6 Escudo).`, 'skill');
+      addLog(state, hero.owner, `${hero.name} activa Égida Real (+6 Escudo).`, 'skill');
     } else if (hero.classId === 'rogue' && action.slot === 'skill1') {
       hero.pos = { ...action.target };
       hero.statuses.backstab = true;
@@ -537,7 +541,7 @@ export function applyGameAction(
         }
       }
       events.push({ type: 'skill', coord: { ...action.target }, label: 'VENENO', sound: 'skill' });
-      addLog(state, hero.owner, `${hero.name} lanza Lluvia de Dagas en área (4 daño + Veneno).`, 'skill');
+      addLog(state, hero.owner, `${hero.name} lanza Lluvia de Dagas en cruz (4 daño + Veneno).`, 'skill');
     } else if (hero.classId === 'pyromancer' && action.slot === 'skill1') {
       const aoe = getAbilityAoeTiles(state, hero, 'skill1', action.target);
       hero.statuses.backstab = false;
@@ -559,7 +563,7 @@ export function applyGameAction(
         tile.fireTurns = 2;
         const occupant = getHeroAt(state, c);
         if (occupant && occupant.owner !== hero.owner) {
-          dealDamage(state, occupant, 3, events, hero.name);
+          dealDamage(state, occupant, 3 + bonusDmg, events, hero.name);
           if (occupant.alive) occupant.statuses.burn = 2;
         }
       }
@@ -580,6 +584,63 @@ export function applyGameAction(
       if (target.alive) target.statuses.rooted = 1;
       events.push({ type: 'status', coord: { ...target.pos }, label: 'INMOVILIZADO', sound: 'skill' });
       addLog(state, hero.owner, `${hero.name} atrapa a ${target.name} con Raíces (3 daño + Inmovilizado).`, 'skill');
+    } else if (hero.classId === 'berserker' && action.slot === 'skill1') {
+      // Salto Sísmico: leap to empty tile + 3 dmg & push around landing
+      hero.pos = { ...action.target };
+      events.push({ type: 'skill', coord: { ...hero.pos }, label: '¡SALTO SÍSMICO!', sound: 'hit' });
+      const around = getAbilityAoeTiles(state, hero, 'skill1', action.target);
+      for (const c of around) {
+        if (coordEq(c, action.target)) continue;
+        const enemy = getHeroAt(state, c);
+        if (enemy && enemy.owner !== hero.owner) {
+          dealDamage(state, enemy, 3 + bonusDmg, events, hero.name);
+          if (enemy.alive) {
+            const px = enemy.pos.x + Math.sign(enemy.pos.x - hero.pos.x);
+            const py = enemy.pos.y + Math.sign(enemy.pos.y - hero.pos.y);
+            const push = { x: px, y: py };
+            if (inBounds(push) && state.grid[push.y][push.x].type !== 'wall' && !getHeroAt(state, push)) {
+              enemy.pos = push;
+            }
+          }
+        }
+      }
+      addLog(state, hero.owner, `${hero.name} cae con Salto Sísmico sacudiendo el suelo.`, 'skill');
+    } else if (hero.classId === 'berserker' && action.slot === 'skill2') {
+      // Torbellino Eléctrico: 5 dmg to all adjacent enemies + 3 shield
+      hero.shield += 3;
+      for (let dy = -1; dy <= 1; dy++) {
+        for (let dx = -1; dx <= 1; dx++) {
+          if (dx === 0 && dy === 0) continue;
+          const c = { x: hero.pos.x + dx, y: hero.pos.y + dy };
+          if (!inBounds(c)) continue;
+          const enemy = getHeroAt(state, c);
+          if (enemy && enemy.owner !== hero.owner) {
+            dealDamage(state, enemy, 5 + bonusDmg, events, hero.name);
+          }
+        }
+      }
+      events.push({ type: 'shield', coord: { ...hero.pos }, label: '⚡ +3 ESC', sound: 'skill' });
+      addLog(state, hero.owner, `${hero.name} desata Torbellino Eléctrico alrededor (+3 Escudo).`, 'skill');
+    } else if (hero.classId === 'chronomancer' && action.slot === 'skill1') {
+      // Pulso Temporal: 4 dmg + root + delay enemy skills by +1 active turn
+      const target = getHeroAt(state, action.target)!;
+      dealDamage(state, target, 4 + bonusDmg, events, hero.name);
+      if (target.alive) {
+        target.statuses.rooted = Math.max(target.statuses.rooted, 1);
+        target.cooldowns.skill1 += 2;
+        target.cooldowns.skill2 += 2;
+      }
+      events.push({ type: 'status', coord: { ...target.pos }, label: '⏳ Ralentizado', sound: 'skill' });
+      addLog(state, hero.owner, `${hero.name} congela el tiempo sobre ${target.name} (4 daño + Inmovilizado).`, 'skill');
+    } else if (hero.classId === 'chronomancer' && action.slot === 'skill2') {
+      // Bendición de Prisa: +5 shield + reduce cooldowns by 1 + +1 Energy
+      const ally = getHeroAt(state, action.target)!;
+      ally.shield += 5;
+      ally.cooldowns.skill1 = Math.max(0, ally.cooldowns.skill1 - 1);
+      ally.cooldowns.skill2 = Math.max(0, ally.cooldowns.skill2 - 1);
+      state.energy[hero.owner] = Math.min(state.maxEnergy, state.energy[hero.owner] + 1);
+      events.push({ type: 'shield', coord: { ...ally.pos }, label: '+5 ESC / +1 EN', sound: 'heal' });
+      addLog(state, hero.owner, `${hero.name} bendice a ${ally.name} (+5 Escudo, +1 Energía).`, 'heal');
     }
 
     checkWinner(state, events);
@@ -588,7 +649,6 @@ export function applyGameAction(
 
   if (action.type === 'END_TURN') {
     const endingPlayer = state.activePlayer;
-    // Check if endingPlayer holds the center Bastion tile
     const center = { x: 4, y: 4 };
     const centerHero = getHeroAt(state, center);
     if (centerHero && centerHero.owner === endingPlayer) {
@@ -607,15 +667,20 @@ export function applyGameAction(
       );
     }
 
+    // Rooted wears off after finishing the affected hero's turn
+    for (const h of state.heroes) {
+      if (h.alive && h.owner === endingPlayer && h.statuses.rooted > 0) {
+        h.statuses.rooted -= 1;
+      }
+    }
+
     checkWinner(state, events);
     if (state.winner) return { state, events };
 
-    // Switch active player
     const nextPlayer: PlayerId = endingPlayer === 1 ? 2 : 1;
     state.activePlayer = nextPlayer;
     if (nextPlayer === 1) {
       state.turn += 1;
-      // Tick fire tiles once per full round
       for (let y = 0; y < state.boardSize; y++) {
         for (let x = 0; x < state.boardSize; x++) {
           const tile = state.grid[y][x];
@@ -630,10 +695,8 @@ export function applyGameAction(
       }
     }
 
-    // Replenish energy for nextPlayer
     state.energy[nextPlayer] = Math.min(state.maxEnergy, state.energy[nextPlayer] + 2);
 
-    // Reset nextPlayer heroes & apply start-of-turn statuses / fountains
     for (const h of state.heroes) {
       if (!h.alive || h.owner !== nextPlayer) continue;
       h.hasMoved = false;
@@ -659,9 +722,6 @@ export function applyGameAction(
         h.statuses.burn -= 1;
         dealDamage(state, h, 3, events, 'Quemadura');
         addLog(state, nextPlayer, `${h.name} sufre 3 de daño por Quemadura.`, 'status');
-      }
-      if (h.statuses.rooted > 0) {
-        h.statuses.rooted -= 1;
       }
     }
 

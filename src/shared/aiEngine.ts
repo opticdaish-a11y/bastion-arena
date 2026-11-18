@@ -1,9 +1,12 @@
 import {
   applyGameAction,
+  getAbilityAoeTiles,
+  getHeroAt,
   getValidMoves,
   getValidTargets,
   manhattan,
 } from './gameEngine';
+import { HERO_TEMPLATES } from './heroesAndMaps';
 import type {
   AbilitySlot,
   AIDifficulty,
@@ -32,6 +35,7 @@ function evaluateState(state: GameState, aiPlayer: PlayerId): number {
 
   for (const h of aiHeroes) {
     score += h.hp * 6 + h.shield * 3;
+    score -= (h.cooldowns.skill1 + h.cooldowns.skill2) * 1.5;
     const distCenter = manhattan(h.pos, center);
     score += Math.max(0, 6 - distCenter) * 4;
     if (distCenter === 0) score += 28; // Holding the Bastion core
@@ -57,10 +61,11 @@ function evaluateState(state: GameState, aiPlayer: PlayerId): number {
 
   for (const e of enemyHeroes) {
     score -= e.hp * 6 + e.shield * 3;
+    score += (e.cooldowns.skill1 + e.cooldowns.skill2) * 2;
     if (manhattan(e.pos, center) === 0) score -= 32;
     if (e.statuses.poison > 0) score += 7;
     if (e.statuses.burn > 0) score += 9;
-    if (e.statuses.rooted > 0) score += 10;
+    if (e.statuses.rooted > 0) score += 12;
   }
 
   return score;
@@ -71,7 +76,6 @@ function getCandidateActionsForHero(state: GameState, hero: HeroInstance): GameA
 
   if (!hero.hasMoved) {
     const moves = getValidMoves(state, hero.id);
-    // Avoid stepping on traps or fire unless necessary
     for (const to of moves) {
       actions.push({ type: 'MOVE', player: hero.owner, heroId: hero.id, to });
     }
@@ -80,8 +84,27 @@ function getCandidateActionsForHero(state: GameState, hero: HeroInstance): GameA
   if (!hero.hasActed) {
     const slots: AbilitySlot[] = ['skill1', 'skill2', 'basic'];
     for (const slot of slots) {
+      const ab = HERO_TEMPLATES[hero.classId].abilities[slot];
       const targets = getValidTargets(state, hero.id, slot);
       for (const target of targets) {
+        // Prune clearly unproductive AoE/whirlwind targets for faster, smarter AI
+        if (ab.targetType === 'any_tile') {
+          const aoe = getAbilityAoeTiles(state, hero, slot, target);
+          const hitsUseful = aoe.some((c) => {
+            const occ = getHeroAt(state, c);
+            return (occ && occ.owner !== hero.owner) || (c.x === 4 && c.y === 4);
+          });
+          if (!hitsUseful) continue;
+        }
+        if (hero.classId === 'berserker' && slot === 'skill2') {
+          const hasAdjacentEnemy = state.heroes.some(
+            (e) =>
+              e.alive &&
+              e.owner !== hero.owner &&
+              Math.max(Math.abs(e.pos.x - hero.pos.x), Math.abs(e.pos.y - hero.pos.y)) <= 1
+          );
+          if (!hasAdjacentEnemy) continue;
+        }
         actions.push({
           type: 'USE_ABILITY',
           player: hero.owner,

@@ -1,6 +1,12 @@
 export type PlayerId = 1 | 2;
 
-export type HeroClassId = 'vanguard' | 'rogue' | 'pyromancer' | 'guardian';
+export type HeroClassId =
+  | 'vanguard'
+  | 'rogue'
+  | 'pyromancer'
+  | 'guardian'
+  | 'berserker'
+  | 'chronomancer';
 
 export type TileType =
   | 'floor'
@@ -11,7 +17,12 @@ export type TileType =
   | 'bastion'
   | 'fire';
 
-export type ArenaId = 'crucible' | 'twin_ruins' | 'obsidian_maze';
+export type ArenaId =
+  | 'sunlit_arena'
+  | 'sky_citadel'
+  | 'crucible'
+  | 'twin_ruins'
+  | 'obsidian_maze';
 
 export type GameMode = 'ai' | 'local' | 'online';
 
@@ -32,7 +43,7 @@ export interface AbilityDef {
   cooldown: number;
   range: number;
   targetType: 'enemy' | 'ally' | 'empty' | 'self' | 'any_tile';
-  aoeRadius?: number; // 1 means 3x3
+  aoeRadius?: number;
   requiresLos?: boolean;
 }
 
@@ -56,11 +67,11 @@ export interface HeroTemplate {
 }
 
 export interface HeroStatuses {
-  poison: number; // turns remaining (2 dmg/turn)
-  burn: number; // turns remaining (3 dmg/turn)
-  rooted: number; // turns remaining (cannot move)
-  backstab: boolean; // next attack deals +3 dmg
-  taunt: boolean; // +2 counterattack or damage reduction
+  poison: number;
+  burn: number;
+  rooted: number;
+  backstab: boolean;
+  taunt: boolean;
 }
 
 export interface HeroInstance {
@@ -68,6 +79,7 @@ export interface HeroInstance {
   owner: PlayerId;
   classId: HeroClassId;
   name: string;
+  level: number;
   hp: number;
   maxHp: number;
   shield: number;
@@ -89,7 +101,7 @@ export interface Tile {
   x: number;
   y: number;
   type: TileType;
-  baseType: TileType; // underlying tile when temporary fire expires
+  baseType: TileType;
   fireTurns?: number;
   runeReady?: boolean;
 }
@@ -146,4 +158,14 @@ export interface RoomSummary {
   arenaId: ArenaId;
   playersCount: number;
   status: 'waiting' | 'drafting' | 'playing';
+}
+
+export interface LeaderboardEntry {
+  name: string;
+  trophies: number;
+  wins: number;
+  losses: number;
+  streak: number;
+  rankName: string;
+  updatedAt: number;
 }
